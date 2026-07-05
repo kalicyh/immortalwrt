@@ -100,24 +100,35 @@ install_deps() {
 }
 
 check_requested_packages() {
-	local missing package symbol
+	local blocked missing package symbol
+	blocked=()
 	missing=()
 
 	while IFS='=' read -r symbol _; do
 		[ -n "$symbol" ] || continue
 		if ! grep -Fxq "$symbol=y" .config && ! grep -Fxq "$symbol=m" .config; then
 			package="${symbol#CONFIG_PACKAGE_}"
-			missing+=("$package")
+			if grep -q "^Package: $package$" tmp/.packageinfo 2>/dev/null; then
+				blocked+=("$package")
+			else
+				missing+=("$package")
+			fi
 		fi
 	done < <(grep -E '^CONFIG_PACKAGE_[^=]+=(y|m)$' "$CONFIG_FILE" | sort -u)
 
-	if [ "${#missing[@]}" -eq 0 ]; then
+	if [ "${#missing[@]}" -eq 0 ] && [ "${#blocked[@]}" -eq 0 ]; then
 		return
 	fi
 
 	echo "Requested packages missing after make defconfig:" >&2
-	printf '  - %s\n' "${missing[@]}" >&2
-	echo "Usually this means a feed is missing, the package was renamed, or dependencies are unmet." >&2
+	if [ "${#missing[@]}" -gt 0 ]; then
+		echo "Not found in package index, usually missing feed or renamed package:" >&2
+		printf '  - %s\n' "${missing[@]}" >&2
+	fi
+	if [ "${#blocked[@]}" -gt 0 ]; then
+		echo "Found in package index but not selected, usually unmet dependencies:" >&2
+		printf '  - %s\n' "${blocked[@]}" >&2
+	fi
 	echo "Fix feeds.conf.default or the package names before building." >&2
 	echo "Set ALLOW_MISSING_PACKAGES=1 to continue anyway." >&2
 
