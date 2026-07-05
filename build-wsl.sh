@@ -137,7 +137,20 @@ check_requested_packages() {
 	fi
 }
 
+format_elapsed() {
+	local total="$1"
+	printf "%02d:%02d:%02d" "$((total / 3600))" "$(((total % 3600) / 60))" "$((total % 60))"
+}
+
+finish() {
+	local status="$?"
+	echo "Build elapsed time: $(format_elapsed "$SECONDS")"
+	exit "$status"
+}
+
 cd "$ROOT"
+SECONDS=0
+trap finish EXIT
 
 if [ "$INSTALL_DEPS" -eq 1 ]; then
 	install_deps
